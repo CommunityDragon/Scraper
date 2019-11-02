@@ -5,6 +5,7 @@ export const enum LogType {
   COMPLETE = 'COMPLETE',
   PROCESS = 'PROCESS',
   FETCH = 'FETCH',
+  ERROR = 'ERROR',
   INFO = 'INFO'
 }
 
@@ -24,6 +25,10 @@ const LogTypeData = {
   [LogType.INFO]: {
     value: 'info',
     color: 'magenta',
+  },
+  [LogType.ERROR]: {
+    value: 'error',
+    color: 'red',
   },
 }
 
@@ -95,6 +100,15 @@ export class Logger {
    */
   public static logInfo(message: string) {
     this.log(LogType.INFO, message)
+  }
+
+  /**
+   * logs an error message
+   * 
+   * @param message - message
+   */
+  public static logError(message: string) {
+    this.log(LogType.ERROR, message)
   }
 
   /**

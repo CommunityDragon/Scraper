@@ -11,7 +11,7 @@ export class BatchProcessor<T = any, RT = any> {
   private size: number
   private list: T[]
 
-  constructor(entity: string, func: BatchFunction, size = 100) {
+  constructor(entity: string, func: BatchFunction, size = 5) {
     this.entity = entity
     this.func = func
     this.size = size
@@ -29,29 +29,31 @@ export class BatchProcessor<T = any, RT = any> {
    * Processes the batch
    */
   public async process(): Promise<RT[]> {
-    let batch: Promise<RT>[] = []
-    let returnList: RT[] = []
     const current: any = { current: null }
-
     const bar = Logger.createProgressBar(LogType.FETCH, `fetching ${this.entity}`, current)
     bar.start(this.list.length)
+    
+    const returnList: any[] = await new Promise((resolve) => {
+      const list = [...this.list]
+      const data: any[] = []
 
-    for (let i = 0; i < this.list.length; i++) {
-      batch.push((async () => {
-        const data = await this.func(this.list[i], i)
+      let i = -1;
+      const exec = async (item, list) => {
+        i++;
+        await data.push(await this.func(item, i));
         current.current = `currently fetched '${this.list[i]}'`
         bar.increment()
-        return data
-      })())
 
-      if (batch.length === this.size) {
-        returnList.push(...await Promise.all(batch))
-        batch = []
+        if (data.length == this.list.length) {
+          resolve(data)
+        } else if (list.length > 0) {
+          const newItem = list.shift()
+          exec(newItem, list)
+        }
+
       }
-    }
-    if (batch.length > 0) {
-      returnList.push(...await Promise.all(batch))
-    }
+      list.splice(0, this.size).forEach(item => exec(item, list))
+    })
 
     bar.stop()
     Logger.logComplete(`fetched ${this.entity}`)

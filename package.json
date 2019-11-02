@@ -7,19 +7,23 @@
   "license": "MIT",
   "scripts": {
     "start": "ts-node -r tsconfig-paths/register src/scraper.ts",
-    "compile": "./node_modules/.bin/pkg .build/cache/dragon-scraper.js --out-path='.build/bin' --targets latest-linux-x64,latest-macos-x64",
+    "compile": "./node_modules/.bin/pkg .build/cache/dragon-scraper.js --out-path='.build/bin' --targets node10-linux-x64,node10-macos-x64",
     "bundle": "webpack",
     "build": "npm run bundle && npm run compile",
     "prebuild": "rimraf .bin"
   },
   "dependencies": {
     "axios": "^0.19.0",
+    "bufferutil": "^4.0.1",
     "chalk": "^2.4.2",
     "cli-progress": "^3.3.1",
     "commander": "^4.0.0",
+    "fluent-ffmpeg": "^2.1.2",
     "fs-extra": "^8.1.0",
     "puppeteer": "^2.0.0",
-    "youtube-dl": "^2.1.0"
+    "ts-polyfill": "^3.5.3",
+    "utf-8-validate": "^5.0.2",
+    "ytdl-core": "^1.0.0"
   },
   "devDependencies": {
     "@types/fs-extra": "^8.0.1",

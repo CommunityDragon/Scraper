@@ -49,7 +49,6 @@ export const scrape = (program: CommanderStatic) => {
       }
       if (locs!.some(loc => loc === 'all')) locs = null;
       
-
       if (mod === 'all') {
         Logger.logInfo('all modules selected for scraping')
         const scrapeKeys = Object.keys(scrapers);

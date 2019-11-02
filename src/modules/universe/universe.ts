@@ -3,7 +3,7 @@ import * as path from 'path';
 import axios, { AxiosInstance } from 'axios';
 
 import { ScraperModule } from "@types";
-import { FetchFactory, FetchFunction, Logger, BatchProcessor } from "@util";
+import { FetchFactory, FetchFunction, BatchProcessor } from "@util";
 
 const baseURL = 'https://universe-meeps.leagueoflegends.com/v1';
 
@@ -52,26 +52,22 @@ export class UniverseModule extends ScraperModule {
     return this.fetchBatch(this.actions.faction, slugs);
   }
 
-  private async scrapeFactionImages(factions: any[]): Promise<void> {
-    const batch = new BatchProcessor('faction images', url => this.scrapeAsset(url))
-    const images = factions.map(faction => {
-      const items: any[] = []
-      items.push(faction.faction.image.uri)
-      items.push(faction.faction.video.uri)
-      items.push(faction.modules.map(mod => {
-        switch (mod.type) {
-          case 'featured-video':
-            return [mod['featured-image'].uri, mod.video.uri]
-          case 'image-gallery':
-            return mod.assets.map(asset => asset.uri)
-          default:
-            return []
-        }
-      }).flat(Infinity))
-      return items;
-    }).flat(Infinity)
-
-    batch.add(...images)
+  /**
+   * scrapes faction assets
+   * 
+   * @param factions - factions data
+   */
+  private async scrapeFactionAssets(factions: any[]): Promise<void> {
+    const batch = new BatchProcessor('faction assets', url => this.scrapeAsset(url))
+    const assets: any[] = []
+    factions.forEach(faction => {
+      assets.push(faction.faction.image.uri);
+      assets.push(faction.faction.video.uri);
+      faction.modules.forEach(mod => 
+        assets.push(...this.getModuleAssetLinks(mod))
+      );
+    })
+    batch.add(...assets)
     await batch.process()
   }
 
@@ -81,6 +77,28 @@ export class UniverseModule extends ScraperModule {
   private async scrapeChampions(championsSummary: any[]): Promise<any> {
     const slugs: string[] = championsSummary.map(({ slug }) => slug);
     return this.fetchBatch(this.actions.champion, slugs);
+  }
+
+  /**
+   * scrapes the champion assets
+   * 
+   * @param champions - champions data
+   */
+  private async scrapeChampionAssets(champions: any[]): Promise<void> {
+    const batch = new BatchProcessor('champion assets', url => this.scrapeAsset(url))
+    const assets: any[] = []
+    champions.forEach(champion => {
+      assets.push(champion.champion.image.uri);
+      if (champion.champion.video) {
+        assets.push(champion.champion.video.uri)
+      }
+      champion.modules.forEach(mod => 
+        assets.push(...this.getModuleAssetLinks(mod))
+      );
+    })
+
+    batch.add(...assets)
+    await batch.process()
   }
 
   /**
@@ -95,19 +113,48 @@ export class UniverseModule extends ScraperModule {
     return this.fetchBatch(this.actions.story, slugs);
   }
 
+  /**
+   * scrapes the story assets
+   * 
+   * @param stories - stories data
+   */
+  private async scrapeStoryAssets(stories: any[]): Promise<void> {
+    const batch = new BatchProcessor('champion assets', url => this.scrapeAsset(url))
+    const assets: any[] = []
+    stories.forEach(story => {
+      story.story['story-sections'].map(section => {
+        if (section['background-image']) {
+          assets.push(section['background-image'].uri)
+        }
+        section['story-subsections'].forEach(subSection => {
+          if (subSection['icon-image']) {
+            assets.push(subSection['icon-image'].uri)
+          }
+        })
+      })
+    })
+    batch.add(...assets)
+    await batch.process()
+  }
+
   async scrape() {
     const { championsSummary, factionsSummary } = await this.scrapeInitial()
 
     const factions = await this.scrapeFactions(factionsSummary)
-    // const champions = await this.scrapeChampions(championsSummary)
-    // const stories = await this.scrapeStories(champions, factions)
+    const champions = await this.scrapeChampions(championsSummary)
+    const stories = await this.scrapeStories(champions, factions)
     
-    await this.scrapeFactionImages(factions)
+    await this.scrapeFactionAssets(factions)
+    await this.scrapeChampionAssets(champions)
+    await this.scrapeStoryAssets(stories)
+
 
     await fs.outputJSON(
       path.join(process.cwd(), `data/raw.json`),
-      { factions },
-      // { factions, champions, stories }, 
+      // { champions },
+      // { factions },
+      // { stories },
+      { factions, champions, stories }, 
       { spaces: 2 }
     )
   }

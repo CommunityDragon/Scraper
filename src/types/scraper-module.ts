@@ -1,10 +1,11 @@
 import { AxiosInstance } from "axios";
 import { FetchFunction, Logger, BatchProcessor } from "@util";
 import puppeteer, { Browser } from 'puppeteer';
-import youtubedl from 'youtube-dl';
-import * as crypto from 'crypto';
+import ffmpeg from 'fluent-ffmpeg';
 import * as fs from 'fs-extra';
 import * as path from 'path';
+import ytdl from 'ytdl-core';
+import crypto from 'crypto';
 
 /**
  * A scraper module
@@ -37,13 +38,25 @@ export abstract class ScraperModule {
     }
   }
 
+  protected getModuleAssetLinks(mod: any): string[] {
+    switch (mod.type) {
+      case 'featured-video':
+        return [mod['featured-image'].uri, mod.video.uri]
+      case 'image-gallery':
+      case 'image-scroller':
+        return mod.assets.map(asset => asset.uri)
+      default:
+        return []
+    }
+  }
+
   /**
    * scrapes asset in a regular fashion
    * 
    * @param url - asset url
    */
   private async scrapeNormalAsset(url: string): Promise<void> {
-    const ext = url.split('.').pop() as string;
+    const ext = (url.split('.').pop() as string).toLowerCase();
     const { data } = await this.client({
       responseType: 'stream',
       method: 'get',
@@ -60,10 +73,32 @@ export abstract class ScraperModule {
    * @param url - youtube url
    */
   private async scrapeYoutubeVideo(url: string): Promise<void> {
-    const video = youtubedl(url, [], {})
     const hash = this.getHash(url)
-    const filePath = path.join(this.getAssetPath(), `${hash}.mp4`);
-    await this.saveFile(video, filePath);
+    const videoPath = path.join(this.getAssetPath(), `${hash}.webm`);
+    const audioPath = path.join(this.getAssetPath(), `${hash}.audio.webm`);
+
+    return new Promise((resolve, reject) => {
+      ytdl(url, {
+        filter: format => format.container === 'webm' && !format.encoding
+      }).pipe(fs.createWriteStream(audioPath))
+        .on('error', reject)
+        .on('finish', () => {
+          ffmpeg()
+            .input(ytdl(url, { filter: format => {
+              return format.container === 'webm' && !format.audioEncoding; } }))
+            .videoCodec('copy')
+            .input(audioPath)
+            .audioCodec('copy')
+            .save(videoPath)
+            .on('error', reject)
+            .on('end', async () => {
+              fs.unlink(audioPath, err => {
+                if(err) reject(err);
+                else resolve()
+              });
+            });
+        });
+    })
   }
 
   /**
